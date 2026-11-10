@@ -4,6 +4,13 @@ from .registry import fetch_catalog, validate_metadata
 from .semver import select_version
 
 
+MAX_PACKAGE_LENGTH = 214
+NPM_NAME = (
+    r"(?:@[a-z0-9._~-]+/[a-z0-9._~-]+|"
+    r"[a-z0-9~-][a-z0-9._~-]*)"
+)
+
+
 class NpmRepository:
     """Хранить каталоги и выбирать версии объявленных зависимостей."""
 

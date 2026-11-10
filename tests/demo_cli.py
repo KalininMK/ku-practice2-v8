@@ -44,7 +44,7 @@ def run(argv, expected):
 
 
 def main():
-    """Показать различные графы, фильтры и ошибки CLI."""
+    """Показать прямые и обратные графы, фильтры и ошибки."""
     print("Офлайн-демонстрация: HTTP-каталоги подменены тестовыми.")
     run(BASE, 0)
     for name in ["chain", "cycle", "diamond", "isolated", "self_cycle"]:
@@ -52,6 +52,13 @@ def main():
              "--repository", f"tests/fixtures/{name}.json"], 0)
     run(["--package", "A", "--version", "1.0.0", "--test",
          "--repository", "tests/fixtures/diamond.json", "--filter", "B"], 0)
+    for name, package, excluded in [
+        ("chain", "C", ""), ("chain", "A", ""),
+        ("cycle", "A", ""), ("diamond", "D", "B"),
+    ]:
+        run(["--package", package, "--version", "1.0.0", "--test",
+             "--repository", f"tests/fixtures/{name}.json", "--reverse",
+             "--filter", excluded], 0)
     cases = [["--package", "bad name"], ["--repository", "bad"],
              ["--test", "yes"], ["--version", "latest"],
              ["--output", "graph.png"], ["--ascii", "yes"],

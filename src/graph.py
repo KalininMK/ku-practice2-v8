@@ -68,3 +68,14 @@ def print_graph(graph):
     for node, dependencies in graph.items():
         text = ", ".join(map(node_label, dependencies)) or "(нет)"
         print(node_label(node) + " -> " + text)
+
+
+
+def reverse_graph(graph):
+    """Развернуть все рёбра полного переданного графа."""
+    result = {node: [] for node in graph}
+    for node, dependencies in graph.items():
+        for dependency in dependencies:
+            result[dependency].append(node)
+    return {node: sorted(set(dependencies), key=node_label)
+            for node, dependencies in result.items()}

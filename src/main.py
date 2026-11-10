@@ -1,4 +1,4 @@
-"""Практическая работа 2, вариант 8. Этап 3: граф npm и рекурсивный BFS."""
+"""Практическая работа 2, вариант 8. Этап 4: обратные зависимости npm."""
 
 import argparse
 from pathlib import Path
@@ -6,22 +6,18 @@ import re
 import sys
 from urllib.parse import urlsplit
 
-from .graph import bfs, load_test_graph, print_graph
-from .npm_graph import NpmRepository
+from .graph import (
+    bfs, load_test_graph, node_label, print_graph, reverse_graph,
+)
+from .npm_graph import MAX_PACKAGE_LENGTH, NPM_NAME, NpmRepository
+from .reverse import read_roots, universe_graph
 from .semver import SEMVER
 
 
-MAX_PACKAGE_LENGTH = 214
-NPM_NAME = (
-    r"(?:@[a-z0-9._~-]+/[a-z0-9._~-]+|"
-    r"[a-z0-9~-][a-z0-9._~-]*)"
-)
-
-
 def build_parser():
-    """Описать семь параметров варианта 8."""
+    """Описать базовые настройки и режимы графа."""
     parser = argparse.ArgumentParser(
-        description="npm dependencies: вариант 8, этап 3",
+        description="npm dependencies: вариант 8, этап 4",
         allow_abbrev=False,
     )
     parser.add_argument("--package", required=True, help="Имя пакета")
@@ -36,6 +32,12 @@ def build_parser():
         help="Выводить ASCII-дерево",
     )
     parser.add_argument("--filter", default="", help="Подстрока исключения")
+    parser.add_argument(
+        "--reverse", action="store_true", help="Обратные зависимости"
+    )
+    parser.add_argument(
+        "--roots", help="JSON исходных npm-пакетов для обратного анализа"
+    )
     return parser
 
 
@@ -76,6 +78,7 @@ def validate_repository(args):
         return
     validate_registry_url(args.repository)
 
+
 def validate_version(args):
     """Потребовать точную версию SemVer, а не диапазон или latest."""
     if not re.fullmatch(SEMVER, args.version):
@@ -101,6 +104,18 @@ def validate_filter(args):
         raise ValueError("--filter: исключает начальный пакет")
 
 
+def validate_reverse_options(args):
+    """Проверить область обратного анализа настоящего реестра."""
+    if args.roots and not args.reverse:
+        raise ValueError("--roots используется вместе с --reverse")
+    if args.test and args.roots:
+        raise ValueError("--roots нужен только для настоящего реестра npm")
+    if args.reverse and not args.test and not args.roots:
+        raise ValueError("Для npm --reverse укажите область поиска --roots")
+    if args.roots and not Path(args.roots).is_file():
+        raise ValueError("--roots: файл не найден")
+
+
 def arguments(argv=None):
     """Прочитать параметры и объяснить ошибки пользователю."""
     parser = build_parser()
@@ -111,25 +126,43 @@ def arguments(argv=None):
         validate_version(args)
         validate_output(args)
         validate_filter(args)
+        validate_reverse_options(args)
     except (ValueError, OSError) as error:
         parser.error(str(error))
     return args
 
 
+def root_node(args):
+    """Получить идентификатор начального пакета."""
+    return args.package if args.test else (args.package, args.version)
+
+
 def selected_graph(args):
-    """Построить достижимый граф из JSON или реестра npm."""
+    """Построить прямой или обратный граф тем же рекурсивным BFS."""
+    root = root_node(args)
     if args.test:
-        return bfs(load_test_graph(args.repository), args.package, args.filter)
-    repository = NpmRepository(args.repository, args.filter)
-    root = args.package, args.version
-    return bfs(repository.dependencies, root, args.filter)
+        graph = load_test_graph(args.repository)
+    else:
+        repository = NpmRepository(args.repository, args.filter)
+        if not args.reverse:
+            return bfs(repository.dependencies, root, args.filter)
+        graph = universe_graph(repository, root,
+                               read_roots(args.roots), args.filter)
+    if args.reverse:
+        graph = reverse_graph(graph)
+    return bfs(graph, root, args.filter)
 
 
 def main(argv=None):
-    """Вывести граф в порядке рекурсивного обхода BFS."""
+    """Вывести граф и список непосредственных и косвенных зависимых."""
     args = arguments(argv)
     try:
-        print_graph(selected_graph(args))
+        graph = selected_graph(args)
+        print_graph(graph)
+        if args.reverse:
+            names = [node_label(node) for node in graph
+                     if node != root_node(args)]
+            print("Обратные зависимости: " + (", ".join(names) or "(нет)"))
     except (OSError, ValueError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
