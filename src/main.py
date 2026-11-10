@@ -1,9 +1,12 @@
-"""Практическая работа 2, вариант 8. Этап 1: настройки CLI."""
+"""Практическая работа 2, вариант 8. Этап 2: прямые зависимости npm."""
 
 import argparse
 from pathlib import Path
 import re
+import sys
 from urllib.parse import urlsplit
+
+from .registry import direct_dependencies
 
 
 MAX_PACKAGE_LENGTH = 214
@@ -25,7 +28,7 @@ SEMVER = (
 def build_parser():
     """Описать семь параметров варианта 8."""
     parser = argparse.ArgumentParser(
-        description="npm dependencies: вариант 8, этап 1",
+        description="npm dependencies: вариант 8, этап 2",
         allow_abbrev=False,
     )
     parser.add_argument("--package", required=True, help="Имя пакета")
@@ -121,10 +124,21 @@ def arguments(argv=None):
 
 
 def main(argv=None):
-    """На первом этапе вывести все настройки ключ=значение."""
+    """Вывести прямые зависимости выбранной версии npm-пакета."""
     args = arguments(argv)
-    for key, value in vars(args).items():
-        print(f"{key}={value}")
+    try:
+        if args.test:
+            raise ValueError("Чтение тестового графа появится на этапе 3")
+        dependencies = direct_dependencies(
+            args.package, args.version, args.repository
+        )
+        if not dependencies:
+            print("(нет прямых зависимостей)")
+        for name, requirement in sorted(dependencies.items()):
+            print(f"{name}: {requirement}")
+    except (OSError, ValueError) as error:
+        print(f"Ошибка: {error}", file=sys.stderr)
+        return 1
     return 0
 
 

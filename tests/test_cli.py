@@ -6,7 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from src.main import arguments, main
+from src.main import arguments
 
 
 class CliTests(unittest.TestCase):
@@ -40,17 +40,16 @@ class CliTests(unittest.TestCase):
         self.assertFalse(args.ascii_tree)
         self.assertEqual(args.filter, "")
 
-    def test_output(self):
-        """Вывести ровно семь настроек в формате ключ=значение."""
+    def test_help(self):
+        """Справка должна содержать все семь параметров."""
         output = io.StringIO()
         with redirect_stdout(output):
-            code = main(self.base())
-        self.assertEqual(code, 0)
-        self.assertEqual(output.getvalue().splitlines(), [
-            "package=is-odd", "repository=https://registry.npmjs.org",
-            "test=False", "version=3.0.1", "output=graph.svg",
-            "ascii_tree=False", "filter=",
-        ])
+            with self.assertRaises(SystemExit) as caught:
+                arguments(["--help"])
+        self.assertEqual(caught.exception.code, 0)
+        for flag in ["--package", "--repository", "--test", "--version",
+                     "--output", "--ascii", "--filter"]:
+            self.assertIn(flag, output.getvalue())
 
     def test_scoped_package(self):
         """Принять имя с областью npm."""
