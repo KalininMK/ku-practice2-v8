@@ -38,6 +38,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     paths = sorted((root / "src").rglob("*.py"))
     paths += sorted((root / "tests").rglob("*.py"))
+    paths += sorted((root / "verification").rglob("*.py"))
     issues = [issue for path in paths for issue in check_file(path)]
     if issues:
         raise SystemExit("\n".join(issues))

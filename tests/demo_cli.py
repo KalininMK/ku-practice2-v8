@@ -59,6 +59,10 @@ def main():
         run(["--package", package, "--version", "1.0.0", "--test",
              "--repository", f"tests/fixtures/{name}.json", "--reverse",
              "--filter", excluded], 0)
+    run(["--package", "A", "--version", "1.0.0", "--test", "--ascii",
+         "--repository", "tests/fixtures/diamond.json"], 0)
+    run(["--package", "A", "--version", "1.0.0", "--test", "--ascii",
+         "--repository", "tests/fixtures/cycle.json"], 0)
     cases = [["--package", "bad name"], ["--repository", "bad"],
              ["--test", "yes"], ["--version", "latest"],
              ["--output", "graph.png"], ["--ascii", "yes"],

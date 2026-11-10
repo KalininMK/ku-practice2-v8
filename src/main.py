@@ -1,9 +1,10 @@
-"""Практическая работа 2, вариант 8. Этап 4: обратные зависимости npm."""
+"""Практическая работа 2, вариант 8. Этап 5: Graphviz, SVG и ASCII-дерево."""
 
 import argparse
 from pathlib import Path
 import re
 import sys
+import subprocess
 from urllib.parse import urlsplit
 
 from .graph import (
@@ -11,13 +12,14 @@ from .graph import (
 )
 from .npm_graph import MAX_PACKAGE_LENGTH, NPM_NAME, NpmRepository
 from .reverse import read_roots, universe_graph
+from .render import render_svg, to_ascii
 from .semver import SEMVER
 
 
 def build_parser():
     """Описать базовые настройки и режимы графа."""
     parser = argparse.ArgumentParser(
-        description="npm dependencies: вариант 8, этап 4",
+        description="npm dependencies: вариант 8, этап 5",
         allow_abbrev=False,
     )
     parser.add_argument("--package", required=True, help="Имя пакета")
@@ -38,6 +40,10 @@ def build_parser():
     parser.add_argument(
         "--roots", help="JSON исходных npm-пакетов для обратного анализа"
     )
+    parser.add_argument(
+        "--visualize", action="store_true", help="Сохранить DOT и SVG"
+    )
+    parser.add_argument("--dot", default="dot", help="Команда Graphviz dot")
     return parser
 
 
@@ -153,17 +159,26 @@ def selected_graph(args):
     return bfs(graph, root, args.filter)
 
 
+def output_graph(args, graph):
+    """Вывести граф или ASCII-дерево и сохранить SVG по переключателю."""
+    if args.ascii_tree:
+        print(to_ascii(graph, root_node(args)))
+    else:
+        print_graph(graph)
+    if args.reverse:
+        names = [node_label(node) for node in graph if node != root_node(args)]
+        print("Обратные зависимости: " + (", ".join(names) or "(нет)"))
+    if args.visualize:
+        output = render_svg(graph, args.output, args.dot)
+        print(f"Создано изображение: {output}")
+
+
 def main(argv=None):
-    """Вывести граф и список непосредственных и косвенных зависимых."""
+    """Выполнить анализ и обработать ошибки данных и отрисовки."""
     args = arguments(argv)
     try:
-        graph = selected_graph(args)
-        print_graph(graph)
-        if args.reverse:
-            names = [node_label(node) for node in graph
-                     if node != root_node(args)]
-            print("Обратные зависимости: " + (", ".join(names) or "(нет)"))
-    except (OSError, ValueError) as error:
+        output_graph(args, selected_graph(args))
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
     return 0
