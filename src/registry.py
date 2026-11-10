@@ -1,4 +1,4 @@
-"""Получение метаданных npm собственным HTTP-клиентом."""
+"""Собственный HTTP-клиент метаданных npm."""
 
 import json
 from urllib.error import HTTPError, URLError
@@ -11,24 +11,21 @@ NOT_FOUND_STATUS = 404
 
 def metadata_url(repository, package, version):
     """Составить URL заданного пакета и точной версии."""
-    name = quote(package, safe="")
-    release = quote(version, safe="")
-    return repository.rstrip("/") + "/" + name + "/" + release
+    return (repository.rstrip("/") + "/" + quote(package, safe="")
+            + "/" + quote(version, safe=""))
 
 
-def fetch_metadata(package, version, repository):
-    """Скачать JSON без вызова npm или библиотек анализа пакетов."""
-    url = metadata_url(repository, package, version)
+def fetch_json(url, description):
+    """Прочитать JSON по HTTP(S) и объяснить ошибки."""
     request = Request(url, headers={
-        "Accept": "application/json",
-        "User-Agent": "ku-practice2-v8/0.2",
+        "Accept": "application/json", "User-Agent": "ku-practice2-v8/0.3",
     })
     try:
         with urlopen(request, timeout=NETWORK_TIMEOUT) as response:
             text = response.read().decode("utf-8")
     except HTTPError as error:
         if error.code == NOT_FOUND_STATUS:
-            raise ValueError(f"Пакет {package}@{version} не найден") from error
+            raise ValueError(f"Пакет {description} не найден") from error
         raise ValueError(f"Ошибка HTTP {error.code} у реестра") from error
     except URLError as error:
         raise OSError(f"Реестр недоступен: {error.reason}") from error
@@ -38,8 +35,20 @@ def fetch_metadata(package, version, repository):
         raise ValueError("Ответ реестра не является JSON") from error
 
 
+def fetch_metadata(package, version, repository):
+    """Загрузить запись одной точно заданной версии."""
+    url = metadata_url(repository, package, version)
+    return fetch_json(url, f"{package}@{version}")
+
+
+def fetch_catalog(package, repository):
+    """Загрузить каталог версий без вызова npm."""
+    url = repository.rstrip("/") + "/" + quote(package, safe="")
+    return fetch_json(url, package)
+
+
 def validate_dependencies(dependencies):
-    """Проверить объект dependencies и сохранить исходные требования."""
+    """Проверить объект dependencies и исходные требования."""
     if not isinstance(dependencies, dict):
         raise ValueError("Поле dependencies должно быть JSON-объектом")
     for name, requirement in dependencies.items():
@@ -60,6 +69,6 @@ def validate_metadata(metadata, package, version):
 
 
 def direct_dependencies(package, version, repository):
-    """Получить прямые зависимости заданной версии пакета."""
-    metadata = fetch_metadata(package, version, repository)
-    return validate_metadata(metadata, package, version)
+    """Получить прямые требования для отдельной проверки."""
+    return validate_metadata(fetch_metadata(package, version, repository),
+                             package, version)

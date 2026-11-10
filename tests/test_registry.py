@@ -4,7 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from urllib.error import HTTPError, URLError
 
 from src.main import main
@@ -97,34 +97,40 @@ class RegistryTests(unittest.TestCase):
             ), {})
 
     def test_main_output(self):
-        """Вывести прямые требования в стабильном порядке."""
+        """Вывести конкретные версии вершин графа."""
+        graph = {("is-odd", "3.0.1"): [("is-number", "6.0.0")],
+                 ("is-number", "6.0.0"): []}
+        repository = Mock()
+        repository.dependencies.side_effect = graph.__getitem__
         output = io.StringIO()
-        with patch("src.main.direct_dependencies",
-                   return_value={"z-dep": "^1.0.0", "a-dep": "2.0.0"}):
+        with patch("src.main.NpmRepository", return_value=repository):
             with redirect_stdout(output):
                 code = main(BASE)
         self.assertEqual(code, 0)
-        self.assertEqual(output.getvalue(), "a-dep: 2.0.0\nz-dep: ^1.0.0\n")
+        self.assertEqual(output.getvalue(),
+                         "is-odd@3.0.1 -> is-number@6.0.0\n"
+                         "is-number@6.0.0 -> (нет)\n")
 
     def test_main_error(self):
         """Ошибки выполнения возвращают код 1 без traceback."""
         errors = io.StringIO()
-        with patch("src.main.direct_dependencies",
+        with patch("src.main.NpmRepository",
                    side_effect=OSError("Нет соединения")):
             with redirect_stderr(errors):
                 code = main(BASE)
         self.assertEqual(code, 1)
         self.assertIn("Нет соединения", errors.getvalue())
 
-    def test_test_mode_pending(self):
-        """Пояснить, что анализ JSON появится следующим этапом."""
-        errors = io.StringIO()
+    def test_test_mode(self):
+        """Прочитать тестовую цепочку через общий CLI."""
+        output = io.StringIO()
         argv = BASE + ["--package", "A", "--test", "--repository",
                        "tests/fixtures/chain.json"]
-        with redirect_stderr(errors):
+        with redirect_stdout(output):
             code = main(argv)
-        self.assertEqual(code, 1)
-        self.assertIn("этапе 3", errors.getvalue())
+        self.assertEqual(code, 0)
+        self.assertEqual(output.getvalue(),
+                         "A -> B\nB -> C\nC -> (нет)\n")
 
 
 if __name__ == "__main__":

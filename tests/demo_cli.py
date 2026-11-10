@@ -1,8 +1,7 @@
-"""Демонстрация CLI второго этапа на тестовом HTTP-ответе."""
+"""Офлайн-демонстрация BFS, фильтров и ошибок параметров."""
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
-import json
 from pathlib import Path
 import shlex
 import sys
@@ -13,20 +12,25 @@ from src.main import main as program
 
 BASE = ["--package", "is-odd", "--repository",
         "https://registry.npmjs.org", "--version", "3.0.1"]
+CATALOGS = {
+    "is-odd": {"name": "is-odd", "versions": {"3.0.1": {
+        "name": "is-odd", "version": "3.0.1",
+        "dependencies": {"is-number": "^6.0.0"}}}},
+    "is-number": {"name": "is-number", "versions": {"6.0.0": {
+        "name": "is-number", "version": "6.0.0"}}},
+}
 
 
-def fake_response(request, timeout):
-    """Подменить HTTP для демонстрации без обращения к сети."""
-    metadata = {"name": "is-odd", "version": "3.0.1",
-                "dependencies": {"is-number": "^6.0.0"}}
-    return io.BytesIO(json.dumps(metadata).encode("utf-8"))
+def fake_catalog(name, repository):
+    """Вернуть явно тестовый каталог без сети."""
+    return CATALOGS[name]
 
 
 def run(argv, expected):
-    """Показать результат запуска и проверить код возврата."""
+    """Показать запуск и проверить код возврата."""
     output, errors = io.StringIO(), io.StringIO()
     print("$ python -m src.main " + shlex.join(argv))
-    with patch("src.registry.urlopen", side_effect=fake_response):
+    with patch("src.npm_graph.fetch_catalog", side_effect=fake_catalog):
         with redirect_stdout(output), redirect_stderr(errors):
             try:
                 code = program(argv)
@@ -40,9 +44,14 @@ def run(argv, expected):
 
 
 def main():
-    """Показать пример вывода и ошибки семи параметров."""
-    print("Офлайн-демонстрация: HTTP-ответ явно подменён тестовым.")
+    """Показать различные графы, фильтры и ошибки CLI."""
+    print("Офлайн-демонстрация: HTTP-каталоги подменены тестовыми.")
     run(BASE, 0)
+    for name in ["chain", "cycle", "diamond", "isolated", "self_cycle"]:
+        run(["--package", "A", "--version", "1.0.0", "--test",
+             "--repository", f"tests/fixtures/{name}.json"], 0)
+    run(["--package", "A", "--version", "1.0.0", "--test",
+         "--repository", "tests/fixtures/diamond.json", "--filter", "B"], 0)
     cases = [["--package", "bad name"], ["--repository", "bad"],
              ["--test", "yes"], ["--version", "latest"],
              ["--output", "graph.png"], ["--ascii", "yes"],

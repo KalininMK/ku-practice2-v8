@@ -1,4 +1,4 @@
-"""Практическая работа 2, вариант 8. Этап 2: прямые зависимости npm."""
+"""Практическая работа 2, вариант 8. Этап 3: граф npm и рекурсивный BFS."""
 
 import argparse
 from pathlib import Path
@@ -6,7 +6,9 @@ import re
 import sys
 from urllib.parse import urlsplit
 
-from .registry import direct_dependencies
+from .graph import bfs, load_test_graph, print_graph
+from .npm_graph import NpmRepository
+from .semver import SEMVER
 
 
 MAX_PACKAGE_LENGTH = 214
@@ -14,21 +16,12 @@ NPM_NAME = (
     r"(?:@[a-z0-9._~-]+/[a-z0-9._~-]+|"
     r"[a-z0-9~-][a-z0-9._~-]*)"
 )
-NUMBER = r"(?:0|[1-9][0-9]*)"
-PRERELEASE = (
-    rf"(?:{NUMBER}|[0-9A-Za-z-]*[A-Za-z-][0-9A-Za-z-]*)"
-)
-SEMVER = (
-    rf"{NUMBER}\.{NUMBER}\.{NUMBER}"
-    rf"(?:-{PRERELEASE}(?:\.{PRERELEASE})*)?"
-    r"(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?"
-)
 
 
 def build_parser():
     """Описать семь параметров варианта 8."""
     parser = argparse.ArgumentParser(
-        description="npm dependencies: вариант 8, этап 2",
+        description="npm dependencies: вариант 8, этап 3",
         allow_abbrev=False,
     )
     parser.add_argument("--package", required=True, help="Имя пакета")
@@ -123,19 +116,20 @@ def arguments(argv=None):
     return args
 
 
+def selected_graph(args):
+    """Построить достижимый граф из JSON или реестра npm."""
+    if args.test:
+        return bfs(load_test_graph(args.repository), args.package, args.filter)
+    repository = NpmRepository(args.repository, args.filter)
+    root = args.package, args.version
+    return bfs(repository.dependencies, root, args.filter)
+
+
 def main(argv=None):
-    """Вывести прямые зависимости выбранной версии npm-пакета."""
+    """Вывести граф в порядке рекурсивного обхода BFS."""
     args = arguments(argv)
     try:
-        if args.test:
-            raise ValueError("Чтение тестового графа появится на этапе 3")
-        dependencies = direct_dependencies(
-            args.package, args.version, args.repository
-        )
-        if not dependencies:
-            print("(нет прямых зависимостей)")
-        for name, requirement in sorted(dependencies.items()):
-            print(f"{name}: {requirement}")
+        print_graph(selected_graph(args))
     except (OSError, ValueError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1
